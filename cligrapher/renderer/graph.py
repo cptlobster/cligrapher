@@ -1,13 +1,13 @@
 
-
-
-class Graph():
+class Graph:
     def __init__(self,
                  data=None,
+                 plotters=None,
                  constraints=None):
         if not data:
             data = {}
         self.data = data
+        self.plotters = plotters
         self.constraints = constraints
 
     def __setattr__(self, key, value):
