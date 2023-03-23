@@ -8,6 +8,7 @@ def map_pt(x, y, old, new):
     nw = new[2]
     nh = new[3]
 
+
 class Renderer:
     def __init__(self, rows: int = 40, cols: int = 120):
         self.rows = rows
@@ -15,7 +16,7 @@ class Renderer:
         self.textfield = [[{"char": " ", "color": ""} for i in range(cols)] for i in range(rows)]
         self.graphs = []
 
-    def push_string(self, s: str, x: int=0, y: int=0, color: str= "", align: str= "left"):
+    def push_string(self, s: str, x: int = 0, y: int = 0, color: str = "", align: str = "left"):
         """add a string to the text field
 
         :param s: the string
@@ -39,7 +40,8 @@ class Renderer:
                 self.textfield[(y + i) % self.rows][(tx + j) % self.cols]["char"] = arrs[i][j]
                 self.textfield[(y + i) % self.rows][(tx + j) % self.cols]["color"] = color
 
-    def push_graph_axes(self, x: int=4, y: int=4, w: int=None, h: int=None, xmin=0, ymin=0, xmax=1, ymax=1):
+    def push_graph_axes(self, x: int = 4, y: int = 4, w: int = None, h: int = None, xmin=0, ymin=0, xstep=1, ystep=None,
+                        xmax=None, ymax=1):
         """Add graph axes to the text field and register the graph region
 
         :param x: graph's x-position on the textfield
@@ -48,15 +50,28 @@ class Renderer:
         :param h: graph's height
         :param xmin: minimum value of x-axis
         :param xmax: maximum value of x-axis
+        :param xstep: x-axis step
         :param ymin: minimum value of y-axis
-        :param ymax: maximum value of y-axis"""
+        :param ymax: maximum value of y-axis
+        :param ystep: y-axis step"""
         if w is None:
             w = self.cols - x * 2
         if h is None:
             h = self.rows - y * 2
+
         x_offset = max(len(str(xmin)), len(str(xmax))) + 1
         y_offset = 1
         col_inc = 0
+        if xmax is None and xstep is not None:
+            xmax = xstep * (w - x_offset)
+        elif xmax is None and xstep is None:
+            raise Exception("either xmax or xstep must be defined")
+
+        if ymax is None and ystep is not None:
+            ymax = ystep * (h - y_offset)
+        elif ymax is None and ystep is None:
+            raise Exception("either ymax or ystep must be defined")
+
         # vertical lines
         for i in range(y, y + h - y_offset):
             self.textfield[i][x + x_offset]["char"] = "┃"
@@ -71,8 +86,8 @@ class Renderer:
         self.textfield[y + h - y_offset][x + x_offset]["char"] = "┗"
         self.push_string(str(ymax), x + x_offset - 1, y, "255", "right")
         self.push_string(str(ymin), x + x_offset - 1, y + h - y_offset, "255", "right")
-        self.push_string(str(ymin), x + x_offset + 2, y + h, "255", "right")
-        self.push_string(str(ymax), x + w, y + h, "255", "right")
+        self.push_string(str(xmin), x + x_offset + 2, y + h, "255", "right")
+        self.push_string(str(xmax), x + w, y + h, "255", "right")
         self.graphs.append(
             {
                 "x": x + (x_offset + 1),
@@ -87,7 +102,7 @@ class Renderer:
             }
         )
 
-    def register(self, xs, ys, graph: int, name: str=None):
+    def register(self, xs, ys, graph: int, name: str = None):
         """Register data to the graph"""
         px = self.graphs[graph]['x']
         py = self.graphs[graph]['y']
@@ -102,7 +117,7 @@ class Renderer:
             name = str(lv)
         self.graphs[graph]['lines'].append({"name": name, "color": (lv % 6) + 1, "x": xs, "y": ys})
 
-    def draw_line(self, graph: int, idx: int=None):
+    def draw_line(self, graph: int, idx: int = None):
         """Draw a line on a specified graph region.
 
         :param xs: List of x parameters (sorted)
@@ -147,7 +162,7 @@ class Renderer:
             self.textfield[py + cpy][px + cpx]["char"] = "#"
             self.textfield[py + cpy][px + cpx]["color"] = str(((lv % 6) + 1))
 
-    def draw_pts(self, graph: int, idx: int=None):
+    def draw_pts(self, graph: int, idx: int = None):
         """Draw points on a specified graph region.
 
         :param xs: List of x parameters (sorted)
@@ -175,6 +190,42 @@ class Renderer:
             cpy = round(my * ph)
             self.textfield[py + cpy][px + cpx]["char"] = "#"
             self.textfield[py + cpy][px + cpx]["color"] = str(((lv % 6) + 1))
+
+    def draw_flame(self, graph: int, idx: int = None):
+        """draw flamegraph of a region"""
+        xs = self.graphs[graph]['lines'][idx]["x"]
+        ys = self.graphs[graph]['lines'][idx]["y"]
+        px = self.graphs[graph]['x']
+        py = self.graphs[graph]['y']
+        pw = self.graphs[graph]['w']
+        ph = self.graphs[graph]['h']
+        xmin = self.graphs[graph]['xmin']
+        xmax = self.graphs[graph]['xmax']
+        ymin = self.graphs[graph]['ymin']
+        ymax = self.graphs[graph]['ymax']
+        lv = self.graphs[graph]['lines'][idx]["color"]
+        colors = ["226", "220", "214", "208", "202", "196"]
+        for i in range(0, min(len(xs), len(ys))):
+            x = xs[i]
+            y = ys[i]
+            # map the value to relative decimal position in coord plane
+            mx = (x - xmin) / (xmax - xmin)
+            my = 1 - (y - ymin) / (ymax - ymin)
+            # then multiply to graph plane size
+            cpx = round(mx * pw)
+            cpy = round(my * ph)
+            ys = [round((k * ((ph - cpy - 1) / (len(colors) - 1))) + cpy) for k in range(0, len(colors))]
+            print(ys)
+            ci = 0
+            cy = ys[0]
+            for j in range(cpy, ph):
+                if cy < j + py:
+                    ci = (ci + 1) % len(ys)
+                    cy = ys[ci]
+
+                col = colors[ci]
+                self.textfield[j][px + cpx]["char"] = "█"
+                self.textfield[j][px + cpx]["color"] = col
 
     def draw_legend(self, x: int, y: int, graph: int):
         lines = self.graphs[graph]["lines"]
